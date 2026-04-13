@@ -99,7 +99,7 @@ export function VolumeView({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="contents" className="mt-4 flex-1 min-h-0">
+          <TabsContent value="contents" className="mt-4 flex-1 min-h-0 flex flex-col overflow-hidden">
             <FileBrowser
               files={files}
               onExtractAll={onExtractAll}
