@@ -30,7 +30,6 @@ void RunTui()
                 .Title("[bold]What would you like to do?[/]")
                 .HighlightStyle(new Style(Color.Cyan1))
                 .AddChoices(
-                    "🔒  Create a new encrypted drive",
                     "📂  Extract data from an encrypted drive",
                     "💾  Mount as a Windows drive",
                     "❌  Exit"));
@@ -39,9 +38,7 @@ void RunTui()
 
         try
         {
-            if (choice.Contains("Create"))
-                CreateDriveFlow();
-            else if (choice.Contains("Extract"))
+            if (choice.Contains("Extract"))
                 ExtractDataFlow();
             else if (choice.Contains("Mount"))
                 MountDriveFlow();
