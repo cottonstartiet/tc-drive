@@ -322,3 +322,13 @@ pub fn preview_image(
 
     Ok(ImagePreviewResult { data, mime_type })
 }
+
+#[tauri::command]
+pub fn verify_lock_password(
+    password: String,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let vol_lock = state.volume.lock().map_err(|e| e.to_string())?;
+    let opened = vol_lock.as_ref().ok_or("No volume is currently open")?;
+    Ok(opened.password == password)
+}

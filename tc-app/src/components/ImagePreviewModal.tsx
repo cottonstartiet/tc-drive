@@ -104,20 +104,20 @@ export function ImagePreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm">
-            <ImageIcon className="h-4 w-4" />
+      <DialogContent className="max-w-[calc(100%-1rem)] sm:max-w-[calc(100vw-1rem)] max-h-[calc(100vh-1rem)] w-full h-[calc(100vh-1rem)] flex flex-col p-3 gap-2">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-sm pr-6">
+            <ImageIcon className="h-4 w-4 shrink-0" />
             <span className="truncate">{current.name}</span>
             {imageFiles.length > 1 && (
-              <span className="text-muted-foreground font-normal ml-auto shrink-0">
-                {currentIndex + 1} of {imageFiles.length}
+              <span className="text-muted-foreground font-normal shrink-0">
+                ({currentIndex + 1}/{imageFiles.length})
               </span>
             )}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="relative flex items-center justify-center min-h-[300px]">
+        <div className="relative flex-1 min-h-0 flex items-center justify-center">
           {/* Previous button */}
           {hasPrev && (
             <Button
@@ -154,7 +154,7 @@ export function ImagePreviewModal({
             <img
               src={imageSrc}
               alt={current.name}
-              className="max-w-full max-h-[60vh] object-contain rounded"
+              className="max-w-full max-h-full object-contain rounded"
             />
           )}
 
@@ -170,13 +170,6 @@ export function ImagePreviewModal({
             </Button>
           )}
         </div>
-
-        {/* Navigation hint */}
-        {imageFiles.length > 1 && (
-          <p className="text-xs text-muted-foreground text-center">
-            Use ← → arrow keys to navigate • Escape to close
-          </p>
-        )}
       </DialogContent>
     </Dialog>
   );

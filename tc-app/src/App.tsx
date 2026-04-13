@@ -1,10 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { Landing, type RecentDrive } from "@/components/Landing";
 import { UnlockView } from "@/components/UnlockView";
 import { VolumeView } from "@/components/VolumeView";
+import { LockScreen } from "@/components/LockScreen";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { Shield, ArrowLeft } from "lucide-react";
@@ -78,19 +79,41 @@ function App() {
   const [mountProgress, setMountProgress] = useState<number>(0);
   const [mountStage, setMountStage] = useState<string>("");
   const [recentDrives, setRecentDrives] = useState<RecentDrive[]>(loadRecentDrives);
+  const [isLocked, setIsLocked] = useState(false);
+  const isDialogOpen = useRef(false);
+
+  // Lock screen when window loses focus and a volume is open
+  useEffect(() => {
+    const handleBlur = () => {
+      if (isDialogOpen.current) return;
+      setStep((currentStep) => {
+        if (currentStep === "unlocked" || currentStep === "mounting" || currentStep === "mounted") {
+          setIsLocked(true);
+        }
+        return currentStep;
+      });
+    };
+    window.addEventListener("blur", handleBlur);
+    return () => window.removeEventListener("blur", handleBlur);
+  }, []);
 
   // Open file dialog
   const handleSelectFile = useCallback(async () => {
-    const selected = await openDialog({
-      multiple: false,
-      filters: [
-        { name: "TrueCrypt Volume", extensions: ["tc", "hc"] },
-        { name: "All Files", extensions: ["*"] },
-      ],
-    });
-    if (selected) {
-      setFilePath(selected as string);
-      setStep("file_selected");
+    isDialogOpen.current = true;
+    try {
+      const selected = await openDialog({
+        multiple: false,
+        filters: [
+          { name: "TrueCrypt Volume", extensions: ["tc", "hc"] },
+          { name: "All Files", extensions: ["*"] },
+        ],
+      });
+      if (selected) {
+        setFilePath(selected as string);
+        setStep("file_selected");
+      }
+    } finally {
+      isDialogOpen.current = false;
     }
   }, []);
 
@@ -153,10 +176,16 @@ function App() {
 
   // Extract all files
   const handleExtractAll = useCallback(async () => {
-    const dest = await openDialog({
-      directory: true,
-      title: "Select extraction destination",
-    });
+    isDialogOpen.current = true;
+    let dest: string | null = null;
+    try {
+      dest = await openDialog({
+        directory: true,
+        title: "Select extraction destination",
+      }) as string | null;
+    } finally {
+      isDialogOpen.current = false;
+    }
     if (!dest) return;
 
     setIsExtracting(true);
@@ -180,10 +209,16 @@ function App() {
 
   // Extract selected files
   const handleExtractSelected = useCallback(async (paths: string[]) => {
-    const dest = await openDialog({
-      directory: true,
-      title: "Select extraction destination",
-    });
+    isDialogOpen.current = true;
+    let dest: string | null = null;
+    try {
+      dest = await openDialog({
+        directory: true,
+        title: "Select extraction destination",
+      }) as string | null;
+    } finally {
+      isDialogOpen.current = false;
+    }
     if (!dest) return;
 
     setIsExtracting(true);
@@ -359,10 +394,14 @@ function App() {
           driveLetter={driveLetter}
           onMount={handleMount}
           onUnmount={handleUnmount}
+          isLocked={isLocked}
         />
       )}
 
       <Toaster position="bottom-right" />
+
+      {/* Lock screen overlay */}
+      {isLocked && <LockScreen onUnlock={() => setIsLocked(false)} />}
     </div>
   );
 }

@@ -2,7 +2,7 @@ pub mod core;
 pub mod commands;
 
 use std::sync::Mutex;
-use commands::{AppState, open_volume, list_files, extract_all, extract_files, mount_volume, unmount_volume, close_volume, is_elevated, preview_image};
+use commands::{AppState, open_volume, list_files, extract_all, extract_files, mount_volume, unmount_volume, close_volume, is_elevated, preview_image, verify_lock_password};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,6 +23,7 @@ pub fn run() {
             close_volume,
             is_elevated,
             preview_image,
+            verify_lock_password,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

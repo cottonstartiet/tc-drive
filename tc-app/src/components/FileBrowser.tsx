@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -14,6 +14,7 @@ import {
 import {
   FolderOpen, File, Download, CheckSquare, Square, Eye,
   Image, FileText, Film, Music, Archive, ListFilter,
+  ChevronRight, HardDrive,
 } from "lucide-react";
 import { ImagePreviewModal } from "@/components/ImagePreviewModal";
 import type { FileEntry } from "@/App";
@@ -59,12 +60,36 @@ function isImageFile(name: string): boolean {
   return IMAGE_EXTENSIONS.has(ext);
 }
 
+function getParentPath(filePath: string): string {
+  const lastSep = filePath.lastIndexOf("\\");
+  if (lastSep <= 0) return "\\";
+  return filePath.substring(0, lastSep);
+}
+
+interface BreadcrumbSegment {
+  label: string;
+  path: string;
+}
+
+function buildBreadcrumbs(currentPath: string): BreadcrumbSegment[] {
+  const segments: BreadcrumbSegment[] = [{ label: "Root", path: "\\" }];
+  if (currentPath === "\\") return segments;
+  const parts = currentPath.substring(1).split("\\");
+  let accumulated = "";
+  for (const part of parts) {
+    accumulated += "\\" + part;
+    segments.push({ label: part, path: accumulated });
+  }
+  return segments;
+}
+
 interface FileBrowserProps {
   files: FileEntry[];
   onExtractAll: () => void;
   onExtractSelected: (paths: string[]) => void;
   isExtracting: boolean;
   progress: number;
+  isLocked: boolean;
 }
 
 function formatSize(bytes: number): string {
@@ -82,10 +107,17 @@ export function FileBrowser({
   onExtractSelected,
   isExtracting,
   progress,
+  isLocked,
 }: FileBrowserProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previewIndex, setPreviewIndex] = useState<number>(-1);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
+  const [currentPath, setCurrentPath] = useState<string>("\\");
+
+  // Close image preview when screen locks
+  useEffect(() => {
+    if (isLocked) setPreviewIndex(-1);
+  }, [isLocked]);
 
   const sortedFiles = useMemo(() => {
     return [...files].sort((a, b) => {
@@ -94,30 +126,50 @@ export function FileBrowser({
     });
   }, [files]);
 
+  // Direct children of the current directory
+  const directChildren = useMemo(() => {
+    return sortedFiles.filter((f) => getParentPath(f.path) === currentPath);
+  }, [sortedFiles, currentPath]);
+
+  // Filter counts scoped to direct children
   const filterCounts = useMemo(() => {
     const counts: Record<FilterKey, number> = { all: 0, folders: 0, images: 0, documents: 0, videos: 0, audio: 0, archives: 0 };
-    for (const f of files) {
+    for (const f of directChildren) {
       counts.all++;
       for (const filter of FILE_FILTERS) {
         if (filter.key !== "all" && filter.match(f)) counts[filter.key]++;
       }
     }
     return counts;
-  }, [files]);
+  }, [directChildren]);
 
+  // Apply active filter to direct children
   const filteredFiles = useMemo(() => {
     const filter = FILE_FILTERS.find((f) => f.key === activeFilter);
-    if (!filter || filter.key === "all") return sortedFiles;
-    return sortedFiles.filter(filter.match);
-  }, [sortedFiles, activeFilter]);
+    if (!filter || filter.key === "all") return directChildren;
+    return directChildren.filter(filter.match);
+  }, [directChildren, activeFilter]);
 
+  // Image files in current directory for preview navigation
   const imageFiles = useMemo(() => {
-    return sortedFiles
+    return directChildren
       .filter((f) => !f.is_dir && isImageFile(f.name))
       .map((f) => ({ path: f.path, name: f.name }));
-  }, [sortedFiles]);
+  }, [directChildren]);
 
-  const fileCount = files.filter((f) => !f.is_dir).length;
+  // Count of items inside each subfolder (for display)
+  const folderItemCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const f of files) {
+      const parent = getParentPath(f.path);
+      counts.set(parent, (counts.get(parent) || 0) + 1);
+    }
+    return counts;
+  }, [files]);
+
+  const breadcrumbs = useMemo(() => buildBreadcrumbs(currentPath), [currentPath]);
+
+  const fileCount = directChildren.filter((f) => !f.is_dir).length;
 
   const toggleSelect = (path: string) => {
     setSelected((prev) => {
@@ -132,7 +184,7 @@ export function FileBrowser({
   };
 
   const selectAll = () => {
-    const filePaths = files.filter((f) => !f.is_dir).map((f) => f.path);
+    const filePaths = directChildren.filter((f) => !f.is_dir).map((f) => f.path);
     setSelected(new Set(filePaths));
   };
 
@@ -140,6 +192,11 @@ export function FileBrowser({
 
   const handleExtractSelected = () => {
     onExtractSelected(Array.from(selected));
+  };
+
+  const navigateToFolder = (path: string) => {
+    setCurrentPath(path);
+    setActiveFilter("all");
   };
 
   const openPreview = (filePath: string) => {
@@ -213,6 +270,32 @@ export function FileBrowser({
           })}
         </div>
 
+        {/* Breadcrumb navigation */}
+        <nav className="flex items-center gap-1 mb-3 shrink-0 text-sm min-h-[28px]">
+          {breadcrumbs.map((seg, i) => {
+            const isLast = i === breadcrumbs.length - 1;
+            return (
+              <span key={seg.path} className="flex items-center gap-1">
+                {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />}
+                {isLast ? (
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    {i === 0 && <HardDrive className="h-3.5 w-3.5" />}
+                    {seg.label}
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => navigateToFolder(seg.path)}
+                    className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {i === 0 && <HardDrive className="h-3.5 w-3.5" />}
+                    {seg.label}
+                  </button>
+                )}
+              </span>
+            );
+          })}
+        </nav>
+
         {isExtracting && (
           <div className="mb-3 space-y-1">
             <Progress value={progress * 100} className="h-2" />
@@ -240,7 +323,7 @@ export function FileBrowser({
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead className="w-24 text-right">Size</TableHead>
-                  <TableHead className="w-48">Path</TableHead>
+                  <TableHead className="w-32 text-right">Info</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -248,8 +331,14 @@ export function FileBrowser({
                 {filteredFiles.map((file) => (
                   <TableRow
                     key={file.path}
-                    className="cursor-pointer"
-                    onClick={() => !file.is_dir && toggleSelect(file.path)}
+                    className={file.is_dir ? "cursor-pointer hover:bg-muted/50" : "cursor-pointer"}
+                    onClick={() => {
+                      if (file.is_dir) {
+                        navigateToFolder(file.path);
+                      } else {
+                        toggleSelect(file.path);
+                      }
+                    }}
                   >
                     <TableCell className="py-1.5">
                       {!file.is_dir &&
@@ -272,8 +361,11 @@ export function FileBrowser({
                     <TableCell className="py-1.5 text-right text-muted-foreground">
                       {file.is_dir ? "—" : formatSize(file.size)}
                     </TableCell>
-                    <TableCell className="py-1.5 text-muted-foreground text-xs truncate max-w-[12rem]">
-                      {file.path}
+                    <TableCell className="py-1.5 text-right text-muted-foreground text-xs">
+                      {file.is_dir
+                        ? `${folderItemCounts.get(file.path) || 0} items`
+                        : getExt(file.name).toUpperCase()
+                      }
                     </TableCell>
                     <TableCell className="py-1.5">
                       {!file.is_dir && isImageFile(file.name) && (

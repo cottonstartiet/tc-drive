@@ -25,6 +25,8 @@ interface VolumeViewProps {
   driveLetter: string | null;
   onMount: () => void;
   onUnmount: () => void;
+  // Lock
+  isLocked: boolean;
 }
 
 export function VolumeView({
@@ -44,6 +46,7 @@ export function VolumeView({
   driveLetter,
   onMount,
   onUnmount,
+  isLocked,
 }: VolumeViewProps) {
   const fileName = filePath.split("\\").pop() || filePath;
   const fileCount = files.filter((f) => !f.is_dir).length;
@@ -106,6 +109,7 @@ export function VolumeView({
               onExtractSelected={onExtractSelected}
               isExtracting={isExtracting}
               progress={extractProgress}
+              isLocked={isLocked}
             />
           </TabsContent>
 
