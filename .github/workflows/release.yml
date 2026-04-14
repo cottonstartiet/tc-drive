@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            artifact: safedrive.exe
+          - rid: linux-x64
+            os: ubuntu-latest
+            artifact: safedrive
+          - rid: osx-x64
+            os: macos-latest
+            artifact: safedrive
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish single-file executable
+        run: >
+          dotnet publish TrueCryptReader.csproj
+          --configuration Release
+          --runtime ${{ matrix.rid }}
+          --output publish/${{ matrix.rid }}
+
+      - name: Rename artifact (non-Windows)
+        if: matrix.rid != 'win-x64'
+        run: mv publish/${{ matrix.rid }}/safedrive publish/${{ matrix.rid }}/safedrive-${{ matrix.rid }}
+
+      - name: Rename artifact (Windows)
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: Rename-Item publish/${{ matrix.rid }}/safedrive.exe safedrive-${{ matrix.rid }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: safedrive-${{ matrix.rid }}
+          path: publish/${{ matrix.rid }}/safedrive-${{ matrix.rid }}*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4.1.3
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SafeDrive CLI ${{ github.ref_name }}
+          body: |
+            ## SafeDrive CLI ${{ github.ref_name }}
+
+            Single-file self-contained executables for all supported platforms.
+
+            ### Downloads
+
+            | Platform | File |
+            |----------|------|
+            | Windows (x64) | `safedrive-win-x64.exe` |
+            | Linux (x64)   | `safedrive-linux-x64`   |
+            | macOS (x64)   | `safedrive-osx-x64`     |
+
+            After downloading on Linux/macOS, make the file executable:
+            ```bash
+            chmod +x safedrive-*
+            ```
+          files: artifacts/**/*
+          fail_on_unmatched_files: true
